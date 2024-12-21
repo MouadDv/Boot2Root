@@ -1,0 +1,192 @@
+#  Enumeration Part
+
+
+After start the machine we have this interface :
+
+---- image of boot2root interface ----
+
+
+
+we dont have any user or ip of that machine that we need to exploit, and because we in the same network  and we set the machine [bridge mode](https://superuser.com/questions/227505/what-is-the-difference-between-nat-bridged-host-only-networking)  so we  can easly scan sagement and see what the machine in network:
+
+
+with nmap , we can start [network reconnaissance](https://nmap.org/book/man-host-discovery.html) for fast to indentfiy the ip of the machine and not scan all the machine port with normal use of nmap.
+we can do that with option -sn that ping all the host in machine and get also mac address and if it VM , note: we can add -v for verbos mode to see all the machines that nmap scan( hot up/ host down), so will not use it in that case 
+
+sudo nmap -sn -sV 192.168.1.0/24
+
+----image exlain the code ----
+
+---- nmap -sn --- image
+
+
+
+our machine (attacker machine in this case) have the ip : 192.168.1.6 , so the target machine :
+
+Nmap scan report for 192.168.1.5
+Host is up (0.00030s latency).
+MAC Address: 08:00:27:20:DD:61 (Oracle VirtualBox virtual NIC)
+
+we know that the target machine because first the nmap recognise  the machine as oracle virtualbox, and we have control the machine VM so we can check this MAC address with the target machine in setting we can found is the same , so this ip of attacker machine: 192.168.1.5
+
+now we can go further and check if any open ports in that machine :
+
+sudo nmap -sC -sS -p- -vvv 192.168.1.5
+
+--- iamge explain commands ----
+
+
+-- image of result ------
+
+
+we can see we found 2 port Internet Message Access Protocol (IMAP) and also ftp port open and 2 port for web servers one of them (port 80) with title Hack me if you can
+
+
+so next step we need to indeify what folder or what that web server is serving , we can do that with dirb so we run dirb in two deffrent port 80 and https(443)
+
+dirb http://192.168.1.5/ and dirb https://192.168.1.5/ 
+
+---- result of 80 port ---
+
+
+
+---- result of 443 port ----
+
+
+
+the result we can see that port 80 the server return CODE:403 , but at same time like folder /forum in port 443 we have response and all  the response 200 and auto-index on, so we can see what inside direcorty , 
+
+output :
+---- Scanning URL: https://192.168.1.5/ ----
++ https://192.168.1.5/cgi-bin/ (CODE:403|SIZE:288)                   
+==> DIRECTORY: https://192.168.1.5/forum/                             
+==> DIRECTORY: https://192.168.1.5/phpmyadmin/                       
++ https://192.168.1.5/server-status (CODE:403|SIZE:293)              
+==> DIRECTORY: https://192.168.1.5/webmail/                                                              
+---- Entering directory: https://192.168.1.5/forum/ ----
++ https://192.168.1.5/forum/backup (CODE:403|SIZE:292)               
++ https://192.168.1.5/forum/config (CODE:403|SIZE:292)               
+==> DIRECTORY: https://192.168.1.5/forum/images/                     
+==> DIRECTORY: https://192.168.1.5/forum/includes/                   
++ https://192.168.1.5/forum/index (CODE:503|SIZE:1204)               
++ https://192.168.1.5/forum/index.php (CODE:503|SIZE:1204)                     
+==> DIRECTORY: https://192.168.1.5/forum/js/                          
+==> DIRECTORY: https://192.168.1.5/forum/lang/                                    
+==> DIRECTORY: https://192.168.1.5/forum/modules/                               
+==> DIRECTORY: https://192.168.1.5/forum/templates_c/                         
+==> DIRECTORY: https://192.168.1.5/forum/themes/                            
+==> DIRECTORY: https://192.168.1.5/forum/update/            
+---- Entering directory: https://192.168.1.5/phpmyadmin/ ----
++ https://192.168.1.5/phpmyadmin/favicon.ico (CODE:200|SIZE:18902)          
++ https://192.168.1.5/phpmyadmin/index.php (CODE:200|SIZE:7540)       
+==> DIRECTORY: https://192.168.1.5/phpmyadmin/js/                   
++ https://192.168.1.5/phpmyadmin/libraries (CODE:403|SIZE:300)        
+==> DIRECTORY: https://192.168.1.5/phpmyadmin/locale/                 
++ https://192.168.1.5/phpmyadmin/phpinfo.php (CODE:200|SIZE:7540)     
++ https://192.168.1.5/phpmyadmin/setup (CODE:401|SIZE:479)            
+==> DIRECTORY: https://192.168.1.5/phpmyadmin/themes/                                                                
+---- Entering directory: https://192.168.1.5/webmail/ ----
++ https://192.168.1.5/webmail/class (CODE:403|SIZE:293)               
+==> DIRECTORY: https://192.168.1.5/webmail/config/                     
++ https://192.168.1.5/webmail/functions (CODE:403|SIZE:297)           
++ https://192.168.1.5/webmail/help (CODE:403|SIZE:292)                 
+==> DIRECTORY: https://192.168.1.5/webmail/images/                    
++ https://192.168.1.5/webmail/include (CODE:403|SIZE:295)             
++ https://192.168.1.5/webmail/index.php (CODE:302|SIZE:0)             
++ https://192.168.1.5/webmail/locale (CODE:403|SIZE:294)                                                                                                                                                             
+==> DIRECTORY: https://192.168.1.5/webmail/plugins/                                                                                                                                                       
+==> DIRECTORY: https://192.168.1.5/webmail/src/                                                                                                                                                         
+==> DIRECTORY: https://192.168.1.5/webmail/themes/                                                       
+---- Entering directory: https://192.168.1.5/webmail/plugins/ ----
+==> DIRECTORY: https://192.168.1.5/webmail/plugins/administrator/      
+==> DIRECTORY: https://192.168.1.5/webmail/plugins/calendar/          
+==> DIRECTORY: https://192.168.1.5/webmail/plugins/demo/              
+==> DIRECTORY: https://192.168.1.5/webmail/plugins/fortune/            
++ https://192.168.1.5/webmail/plugins/index.php (CODE:302|SIZE:0)    
+==> DIRECTORY: https://192.168.1.5/webmail/plugins/info/              
+==> DIRECTORY: https://192.168.1.5/webmail/plugins/test/                 
+==> DIRECTORY: https://192.168.1.5/webmail/plugins/translate/                                                                  
+---- Entering directory: https://192.168.1.5/webmail/src/ ----
++ https://192.168.1.5/webmail/src/index.php (CODE:302|SIZE:0)                                                                
+---- Entering directory: https://192.168.1.5/webmail/themes/ ----
+==> DIRECTORY: https://192.168.1.5/webmail/themes/css/                  
++ https://192.168.1.5/webmail/themes/index.php (CODE:302|SIZE:0)                                                                 
+---- Entering directory: https://192.168.1.5/webmail/plugins/administrator/ ----
++ https://192.168.1.5/webmail/plugins/administrator/index.php (CODE:302|SIZE:0) 
+---- Entering directory: https://192.168.1.5/webmail/plugins/calendar/ ----
++ https://192.168.1.5/webmail/plugins/calendar/index.php (CODE:302|SIZE:0)    
++ https://192.168.1.5/webmail/plugins/calendar/README (CODE:200|SIZE:887)                                                               
+---- Entering directory: https://192.168.1.5/webmail/plugins/demo/ ----
++ https://192.168.1.5/webmail/plugins/demo/index.php (CODE:302|SIZE:0)     
++ https://192.168.1.5/webmail/plugins/demo/README (CODE:200|SIZE:837)                                                               
+---- Entering directory: https://192.168.1.5/webmail/plugins/fortune/ ----
++ https://192.168.1.5/webmail/plugins/fortune/index.php (CODE:302|SIZE:0)  
++ https://192.168.1.5/webmail/plugins/fortune/README (CODE:200|SIZE:485)                                                                 
+---- Entering directory: https://192.168.1.5/webmail/plugins/info/ ----
++ https://192.168.1.5/webmail/plugins/info/index.php (CODE:302|SIZE:0)   
++ https://192.168.1.5/webmail/plugins/info/README (CODE:200|SIZE:1632)                                                                
+---- Entering directory: https://192.168.1.5/webmail/plugins/test/ ----
++ https://192.168.1.5/webmail/plugins/test/index.php (CODE:302|SIZE:0)                                                                                                                                                               
++ https://192.168.1.5/webmail/plugins/test/README (CODE:200|SIZE:505)                                                                                                                                         
+---- Entering directory: https://192.168.1.5/webmail/plugins/translate/ ----
++ https://192.168.1.5/webmail/plugins/translate/index.php (CODE:302|SIZE:0)                                                                                       
++ https://192.168.1.5/webmail/plugins/translate/README (CODE:200|SIZE:1730)                                                                                        
+---- Entering directory: https://192.168.1.5/webmail/themes/css/ ----
++ https://192.168.1.5/webmail/themes/css/index.php (CODE:302|SIZE:0)                                                                                                                                                                       
+#    Exploit Part
+
+
+Now we have website map now we know there is forum websire and webmail and database phpmyadmin
+--------- forum  ---------------
+
+
+After see the forum we test to check the topics in the forum:
+topic :  Probleme login ? - lmezard, 2015-10-08, 00:10
+
+-----image of topics-----
+
+
+we found the logs of pam_unix(sshd:auth)  mean logs of ssh 
+
+we try to search for user or passowrd but in the search we found that user who put this logs in time he try to loggin he put the passowrd in the in input
+of the user `lmezard` so know we the password :
+
+Oct 5 08:45:29 BornToSecHackMe sshd[7547]: Failed password for invalid user !q\]Ej?*5K5cy*AJ from 161.202.39.38 port 57764 ssh2
+
+we try to login with in forum and it work, after loggin to the site we know the users , that we found , we found nothing in forum, so know let try if that user in email and database
+
+after click on email icon in admin we know that email of that user is : laurie@borntosec.net
+
+---------eamil  -----
+
+
+in eamils we found meessage :
+``` 	qudevide@mail.borntosec.net 	Oct 8, 2015 	  	DB Access ```
+
+that email have passowd of databse root :
+```
+Hey Laurie,
+
+You cant connect to the databases now. Use root/Fg-'kKXBj87E:aJ$
+
+Best regards.
+```
+
+in this part we need to found how we can use that databse is to access to the machine so to get reverse shell 
+
+so the real question how to create file that run in system(reverse shell) with phpmyadmin 
+
+so what we know now is phpmyadmin have SELECT INTO OUTFILE that can select the row and turn into file
+
+
+
+but the second problem where to put that file (revershell) and need to have permission on that file and we can access to it from 
+the browser through the webserver .
+
+so for that we search in that forum name [mylitlleforum](https://github.com/My-Little-Forum/mylittleforum/wiki) we found in github the codesouce and the instaltion method
+in that instalition method that :
+Depending on your server configuration the write permission of the subdirectory templates_c (CHMOD 770, 775 or 777) and the file config/db_settings.php (CHMOD 666) might need to be changed in order that they are writable by the script
+
+the subdirectory templates_c have persmission of 777 and listabel(autoindex on) in the borwser so we can easy put the file there and run it.
+
+
