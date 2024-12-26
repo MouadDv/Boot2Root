@@ -1,13 +1,13 @@
 #  Enumeration Part
 
 
-After start the machine we have this interface :
+After starting the machine we have this interface :
 
 ---- image of boot2root interface ----
 
+Unlike Snow-Crash, the machine doesn't provide us with any information (IP address, Users, Services running)
 
-
-we dont have any user or ip of that machine that we need to exploit, and because we in the same network  and we set the machine [bridge mode](https://superuser.com/questions/227505/what-is-the-difference-between-nat-bridged-host-only-networking)  so we  can easly scan sagement and see what the machine in network:
+We can set the virtual machine network to bridge mode to communicate with it using our machine [bridge mode](https://superuser.com/questions/227505/what-is-the-difference-between-nat-bridged-host-only-networking)  so we  can easly scan sagement and see what the machine in network:
 
 
 with nmap , we can start [network reconnaissance](https://nmap.org/book/man-host-discovery.html) for fast to indentfiy the ip of the machine and not scan all the machine port with normal use of nmap.
