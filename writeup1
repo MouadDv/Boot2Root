@@ -802,3 +802,138 @@ Password:
 zaz@BornToSecHackMe:~$ ls
 exploit_me  mail
 ```
+
+
+
+# Exploit the binary 
+
+If we run `ls -la` in the zaz home folder file we can notice that exploit_me have setuid bite set that mean if we can exploit the binary we can run somthing or get shell by id root:
+
+/// image ls -la
+
+
+### start to reverse the binary
+
+start by run
+- file exploit_me
+```
+exploit_me: setuid setgid ELF 32-bit LSB executable, Intel 80386, version 1 (SYSV), dynamically linked (uses shared libs), for GNU/Linux 2.6.24, BuildID[sha1]=0x2457e2f88d6a21c3893bc48cb8f2584bcd39917e, not stripped
+```
+
+we can run webserver in the machine with pyhton2 python -m SimpleHTTPServer PORT
+
+we get it in our attack machine and start reverse it by binary ninja, after reverse it in C we see that programe check if we recive argument if yes copy the data of that argument to str,
+
+/// image binary ninja C
+but we dont know the size of str , se we can start disassembly the binary :
+
+
+//// image binary ninja assambly 
+
+
+The first two lines form the prologue, which prepares the stack for the function's execution. This ensures that the function operates within its own stack frame while preserving the caller's stack state.
+
+```
+080483f4  55                 push    ebp {__saved_ebp}
+080483f5  89e5               mov     ebp, esp {__saved_ebp}
+```
+push ebp:
+Saves the caller's base pointer (ebp) on the stack.
+This ensures that the original stack frame can be restored when the function returns.
+mov ebp, esp:
+Copies the current stack pointer (esp) into the base pointer (ebp).
+This establishes a new stack frame for the current function, making it easier to reference local variables and function arguments relative to ebp.
+This sets up the foundation for the function to manage its local variables and arguments without interfering with the caller's stack.
+
+Next, we see this line in the assembly:
+
+```
+080483fa  81ec90000000       sub     esp, 0x90
+```
+sub esp, 0x90:
+Reserves 0x90 (144 in decimal) bytes of stack space for local variables.
+The stack grows downward in memory, so subtracting from esp moves it to a lower address, effectively "reserving" space.
+In this function, the reserved space is for the local buffer str[144]
+
+now we know the size of the buffer and because The assembly uses the strcpy function to copy argv[1] into the buffer str.
+The key problem here is that strcpy does not check the size of the input (argv[1]) against the size of the buffer (str[144]).
+If the input string (argv[1]) is longer than 144 bytes, it will overwrite memory beyond the buffer, including critical stack data like the saved return address.
+
+### Next Step: Checking Binary Protections
+Before attempting to exploit the vulnerability, it is essential to determine the level of protection applied to the binary. This helps us understand the potential challenges we might face when crafting an exploit.
+
+We use the checksec tool to analyze the binary’s security features. This tool inspects protection mechanisms such as stack canaries, NX (No Execute), PIE (Position Independent Executable), and RELRO (Read-Only Relocations). These mechanisms, if enabled, can significantly difficult exploitation.
+```
+└─$ checksec --verbose --file=./exploit_me 
+RELRO           STACK CANARY      NX            PIE             RPATH      RUNPATH      Symbols         FORTIFY Fortified       Fortifiable     FILE
+No RELRO        No canary found   NX disabled   No PIE          No RPATH   No RUNPATH   66 Symbols        No    0               1               ./exploit_me
+```
+
+
+- RELRO (Read-Only Relocations):
+No RELRO: The Global Offset Table (GOT) is writable, making it vulnerable to GOT overwrites. While this isn’t directly relevant for a stack buffer overflow, it’s important for advanced exploitation techniques.
+
+- Stack Canary:
+No canary found: The binary does not include stack canaries, which are random values placed before the return address to detect buffer overflows. Without canaries, the program cannot detect an overflow before the return address is overwritten.
+
+-NX (No Execute):
+NX disabled: The stack is executable, meaning any injected shellcode can run directly from the stack. This simplifies exploitation significantly, as no additional bypass techniques (e.g., ret2libc) are needed.
+
+- PIE (Position Independent Executable):
+No PIE: The binary does not randomize its base address, making memory addresses static across executions. This allows us to calculate the exact location of the return address and shellcode.
+
+- FORTIFY_SOURCE:
+No: The binary does not use glibc's FORTIFY_SOURCE, which adds runtime checks for buffer overflows in certain functions (e.g., strcpy). This further exposes the vulnerability in strcpy.
+
+what we can do  with that inforamation :
+No stack canary → No overflow detection.
+NX disabled → Shellcode can run directly from the stack.
+No PIE → Memory addresses are predictable.
+No RELRO → GOT overwrites are possible for advanced exploits.
+
+now let test where the offset that can overflow and edit the return address to our shellcode :
+To determine the offset that overflows the stack and overwrites the EIP, we used pwndbg to visualize the stack during execution.
+
+First, we launched gdb with the vulnerable binary:
+
+```gdb ./exploit_me```
+Next, we ran the program with 145 As as input:
+
+```run $(python -c 'print("A" * 145)')```
+// image of gdb
+
+Upon inspecting the registers, we observed that the EIP register, which should hold the address of the next instruction, was overwritten with 0x41414141. This confirms that the input overflowed the buffer and reached the return address.
+Since 0x41 represents the ASCII character A, this confirms the payload size needed to overwrite the EIP. From here, we can calculate the exact offset to control the return address and redirect execution.
+
+after testing multiple times to change EIP to my shellcode nothig work but what we sure that buffer overfolow work :
+
+```
+buffer_size = 138
+eip = b"\x42\x42\x42\x42"  
+payload = b"A" * buffer_size + eip
+print(payload)
+```
+
+
+// image of gdp
+
+you can see that EIP change to 0x42424242 that proof that we controll the next instruction adress ,
+
+
+so we change the technique to `ret2libc`  exploits the program by using already existing library functions, such as those in the libc (standard C library) insted of inject shellcode
+#### How Ret2Libc Works:
+
+Control EIP: The buffer overflow is used to overwrite the return address (EIP) to point to a libc function like system().
+Build Payload: The payload consists of:
+
+Address of system().
+A "return address" (can be any valid address; typically the program exits cleanly afterward).
+Address of a string (e.g., "/bin/sh") that will be passed as an argument to system().
+Execution Flow: When the program executes and hits the overwritten return address, it calls system("/bin/sh"), which spawns a shell.
+
+in our case :
+[ Buffer (AAA...AAA) ] --> Overwrite
+[ Address of system() ] --> Address of libc `system`
+[ Fake Return Address ] --> Can be any valid address
+[ Address of "/bin/sh" ] --> Argument to `system()`
+
