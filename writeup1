@@ -1,8 +1,6 @@
 # Enumeration Part
 
-After starting the machine, we have this interface:
-
-![Boot2Root Interface](<path-to-image>)
+Let's start the machine.
 
 Unlike Snow-Crash, the machine doesn't provide us with any information such as IP address, users, or running services.
 
@@ -13,8 +11,6 @@ Using **nmap**, we can start [network reconnaissance](https://nmap.org/book/man-
 ```bash
 sudo nmap -sn -sV 192.168.1.0/24
 ```
-
-![Nmap -sn Example](<path-to-image>)
 
 Our attacker machine's IP is **192.168.1.6**, so the target machine's IP is:
 
@@ -31,8 +27,6 @@ Now, let’s scan for open ports:
 ```bash
 sudo nmap -sC -sS -p- -vvv 192.168.1.5
 ```
-
-![Nmap Scan Results](<path-to-image>)
 
 ### Results:
 
@@ -619,8 +613,9 @@ After constructing the new string from the array, we compare it against the targ
 
 If they match, we return 0. If not, the bomb is triggered.
 
+In this phase the possible combination that are validated by the bomb are massive. So we opted to generate a password list to try and use all combinations possible.
 
-// TO DO: Add script that calculate every possible printabele combination
+The scripts are included in scripts folder.
 
 
 Phase 6:
